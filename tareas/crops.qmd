@@ -1,0 +1,155 @@
+---
+title: "Crops"
+author: "Damian L"
+format: html
+editor: visual
+---
+
+```{r}
+install.packages("readr")
+```
+
+```{r}
+library("readr")
+```
+
+## Estimación
+
+Lo haremos por máxima verosimilitud, con bn.fit(). Estos estimadores por máxima verosimilitud es igual (exacto) al de regresión lineal.\
+Recuerda que para los nodos que tienen padre, los parametros de son dados por: μ = **β0 + β1X1+β2X2**
+
+```{r}
+data <- read_csv("/Users/damian/Universidad/razonamiento_incertidumbre/project_R_incertidumbre/project_r/data/crop.csv")
+```
+
+```{r}
+library(dplyr)
+
+data <- data |> 
+  select(-crop)
+```
+
+```{r}
+colnames(data) = c("N", "P", "K", "T", "H", "pH", "R", "Y")
+```
+
+```{r}
+install.packages("bnlearn")
+```
+
+```{r}
+library(bnlearn)
+dag <- model2network("[T][R][H|T:R][pH|T:R][N|H][K|H][P|pH][Y|N:K:P]")
+```
+
+```{r}
+crop_fit = bn.fit(dag, data = data)
+```
+
+```{r}
+crop_fit$N
+```
+
+## Interpretación
+
+El 27
+
+## Comparar resultados con el de regresión lineal pa ver si son iguales
+
+El 27.94 y el 0.316 (spoiler: sí son).
+
+```{r}
+mod_lm = lm(N ~ H, data = data)
+coef(mod_lm)
+
+```
+
+El parametro que va después de mod_lm es la Fórmula, la fórmula es la expresión que representa un modelo
+
+```{r}
+library(ggplot2)
+ggplot(data, aes(x = H, y = N)) +
+  geom_point(color = "steelblue", alpha = 0.3) +
+  geom_smooth(method = lm, se = FALSE, lwd = 2, color = "dodgerblue") +
+  labs(x = "Humedad", y = "Nivel de nitrógeno", title = "") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", margin = margin(0, 0, 5, 0)),
+        axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold", angle = 90))
+```
+
+## Interpretación de la gráfica
+
+Por lo que podemos ver, aparenta que no sigue una distribución lineal, así que conviene usar un modelo no paramétrico.
+
+## Modelo no paramétrico
+
+A comparación de los paramétricos en los que f(x;o) está totalmente especificada, en los no paramétricos no está totalmente especificada. \
+Esto significa que, aunque sí asumimos una distribución normal, la media es igual a una función (cualquiera) que no conocemos, entonces lo que estamos tratando de estimar, es la función que descibe la media.
+
+```{r}
+install.packages("mgcv")
+
+
+```
+
+```{r}
+install.packages("gratia")
+```
+
+```{r}
+library(mgcv)
+library(gratia)
+```
+
+```{r}
+mod_gam_N = gam(N ~ s(H), data = data, method = "REML")
+```
+
+El s(H) es lo que le indica que es una función no lineal
+
+```{r}
+library(ggplot2)
+draw(mod_gam_N, residuals = TRUE, rug = FALSE) +
+  labs(x = "Humedad", y = "s(Humedad)", title = "Efecto parcial de la humedad sobre el nitrógeno") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold",
+                                  margin = margin(0, 0, 5, 0)),
+        axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold", angle = 90),
+        legend.title = element_text(hjust = 0.5, face = "bold"),
+        legend.text = element_text(hjust = 0.5),
+        strip.text = element_text(hjust = 0.5, face = "bold",
+                                  margin = margin(2, 3, 3, 3)),
+        plot.subtitle = element_text(hjust = 0.5, face = "bold",
+                                     size = 10,
+                                     margin = margin(0, 0, 5, 0)))
+```
+
+```{r}
+mod_Y_NKP = lm(Y ~ N + K + P, data = data)
+summary(mod_Y_NKP)
+```
+
+```{r}
+library(bnlearn)
+score(dag,data,type = "bic-g")
+```
+
+```{r}
+mod_gam_H = gam(H ~ s(T) + s(R), data = data, method = "REML")
+mod_gam_pH = gam(pH ~ s(T) + s(R), data = data, method = "REML")
+mod_gam_N = gam(N ~ s(H), data = data, method = "REML")
+mod_gam_K = gam(K ~ s(H), data = data, method = "REML")
+mod_gam_P = gam(P ~ s(pH), data = data, method = "REML")
+mod_gam_Y = gam(Y ~ s(N) + s(K) + s(P), data = data, method = "REML")
+```
+
+```{r}
+mod_T = lm(T ~ 1, data = data)
+mod_R = lm(R ~ 1, data = data)
+```
+
+```{r}
+-1/2 * (BIC(mod_gam_H) + BIC(mod_gam_K) + BIC(mod_gam_N) + BIC(mod_gam_P) + BIC(mod_gam_pH) + BIC(mod_gam_Y) + BIC(mod_gam_Y) + BIC(mod_R) + BIC(mod_T))
+```
